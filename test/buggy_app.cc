@@ -45,7 +45,7 @@ void setupBreakpad(const string& outputDirectory) {
 	// call TerminateProcess() to prevent any further code from
 	// executing once a minidump file has been written following a
 	// crash.  See ticket #17814
-	exception_handler->set_terminate_on_unhandled_exception(true);
+	//exception_handler->set_terminate_on_unhandled_exception(true);
 #endif
 }
 

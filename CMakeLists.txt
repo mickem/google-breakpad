@@ -4,45 +4,46 @@ cmake_minimum_required(VERSION 2.8)
 set(BREAKPAD_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 if(WIN32)
-        set(DEBUG_ACCESS_SDK_DIR "$ENV{VSINSTALLDIR}/DIA SDK")
-		
+	set(DEBUG_ACCESS_SDK_DIR "$ENV{VSINSTALLDIR}/DIA SDK")
+	
+	add_definitions(-DUNICODE -D_UNICODE)
 
-		include_directories(${BREAKPAD_SRC_DIR} ${BREAKPAD_SRC_DIR}/third_party/windows/include ${DEBUG_ACCESS_SDK_DIR}/include)
-		set(BREAKPADCOMMON_LIB_SRCS
-			${BREAKPAD_SRC_DIR}/common/windows/guid_string.cc
-			${BREAKPAD_SRC_DIR}/common/windows/string_utils.cc
+	include_directories(${BREAKPAD_SRC_DIR} ${BREAKPAD_SRC_DIR}/third_party/windows/include ${DEBUG_ACCESS_SDK_DIR}/include)
+	set(BREAKPADCOMMON_LIB_SRCS
+		${BREAKPAD_SRC_DIR}/common/windows/guid_string.cc
+		${BREAKPAD_SRC_DIR}/common/windows/string_utils.cc
+	)
+	set(BREAKPADCOMMON_LIBS Imagehlp)
+
+	set(CLIENT_SRC_DIR ${BREAKPAD_SRC_DIR}/client/windows)
+	set(BREAKPAD_LIB_SRCS
+		${CLIENT_SRC_DIR}/handler/exception_handler.cc
+		${CLIENT_SRC_DIR}/crash_generation/client_info.cc
+		${CLIENT_SRC_DIR}/crash_generation/crash_generation_client.cc
+		${CLIENT_SRC_DIR}/crash_generation/crash_generation_server.cc
+		${CLIENT_SRC_DIR}/crash_generation/minidump_generator.cc
+	)
+	#ide_group_sources("${BREAKPAD_LIB_SRCS}")
+	
+	if (EXISTS "${DEBUG_ACCESS_SDK_DIR}")
+
+		set(DUMPSYMS_SRCS
+				# pdb_source_line_writer.cc is linked into the `dump_syms` target rather than
+				# `breakpad_common` to avoid a runtime dependency on the DIA SDK libs
+				# in the breakpad client library
+				${BREAKPAD_SRC_DIR}/common/windows/pdb_source_line_writer.cc
+				${BREAKPAD_SRC_DIR}/tools/windows/dump_syms/dump_syms.cc
 		)
-		set(BREAKPADCOMMON_LIBS Imagehlp)
 
-		set(CLIENT_SRC_DIR ${BREAKPAD_SRC_DIR}/client/windows)
-		set(BREAKPAD_LIB_SRCS
-			${CLIENT_SRC_DIR}/handler/exception_handler.cc
-			${CLIENT_SRC_DIR}/crash_generation/client_info.cc
-			${CLIENT_SRC_DIR}/crash_generation/crash_generation_client.cc
-			${CLIENT_SRC_DIR}/crash_generation/crash_generation_server.cc
-			${CLIENT_SRC_DIR}/crash_generation/minidump_generator.cc
-		)
-		#ide_group_sources("${BREAKPAD_LIB_SRCS}")
-		
-        if (EXISTS "${DEBUG_ACCESS_SDK_DIR}")
-
-			set(DUMPSYMS_SRCS
-					# pdb_source_line_writer.cc is linked into the `dump_syms` target rather than
-					# `breakpad_common` to avoid a runtime dependency on the DIA SDK libs
-					# in the breakpad client library
-					${BREAKPAD_SRC_DIR}/common/windows/pdb_source_line_writer.cc
-					${BREAKPAD_SRC_DIR}/tools/windows/dump_syms/dump_syms.cc
-			)
-
-			find_library(DIA_SDK_GUID_LIB diaguids PATHS ${DEBUG_ACCESS_SDK_DIR}/lib)
-			set(DUMPSYMS_LIBS ${DIA_SDK_GUID_LIB})
-		else()
-            # The Debug Access SDK is required to build the dump_syms tool.
-            # It ships with the pro versions of Visual Studio 2008 and 2010 but not
-            # the express versions. It is available separately as part of the Windows SDK
-            # however.
-            message(STATUS "Debug Access SDK not found in ${DEBUG_ACCESS_SDK_DIR}")
-        endif()
+		find_library(DIA_SDK_GUID_LIB diaguids PATHS ${DEBUG_ACCESS_SDK_DIR}/lib)
+		set(DUMPSYMS_LIBS ${DIA_SDK_GUID_LIB})
+	else()
+		# The Debug Access SDK is required to build the dump_syms tool.
+		# It ships with the pro versions of Visual Studio 2008 and 2010 but not
+		# the express versions. It is available separately as part of the Windows SDK
+		# however.
+		message(STATUS "Debug Access SDK not found in ${DEBUG_ACCESS_SDK_DIR}")
+	endif()
 elseif(APPLE)
 	set(CLIENT_SRC_DIR ${BREAKPAD_SRC_DIR}/client/mac)
 	include_directories(${BREAKPAD_SRC_DIR} ${BREAKPAD_SRC_DIR}/third_party/mac/include)
