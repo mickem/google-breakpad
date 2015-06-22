@@ -3,11 +3,62 @@ cmake_minimum_required(VERSION 2.8)
 
 set(BREAKPAD_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
+IF(NOT DEFINED BREAKPAD_LIBRARY_TYPE)
+  SET(BREAKPAD_LIBRARY_TYPE "BOTH" CACHE STRING "Type of library to build, STATIC, SHARED or BOTH.")
+ELSE()
+  SET(BREAKPAD_LIBRARY_TYPE ${BREAKPAD_LIBRARY_TYPE} CACHE STRING "Type of library to build, STATIC or SHARED.")
+ENDIF()
+IF(NOT DEFINED BREAKPAD_RUNTIME_TYPE)
+  SET(BREAKPAD_RUNTIME_TYPE "STATIC" CACHE STRING "Type of runtime to use, STATIC or SHARED.")
+ELSE()
+  SET(BREAKPAD_RUNTIME_TYPE ${BREAKPAD_RUNTIME_TYPE} CACHE STRING "Type of runtime to use, STATIC or SHARED.")
+ENDIF()
+
+
+STRING(TOUPPER ${BREAKPAD_LIBRARY_TYPE} BREAKPAD_LIBRARY_TYPE_UPPER)
+STRING(COMPARE EQUAL "${BREAKPAD_LIBRARY_TYPE_UPPER}" "STATIC" BREAKPAD_STATIC)
+IF(NOT BREAKPAD_STATIC)
+	STRING(COMPARE EQUAL "${BREAKPAD_LIBRARY_TYPE_UPPER}" "BOTH" BREAKPAD_STATIC)
+ENDIF()
+STRING(COMPARE EQUAL "${BREAKPAD_LIBRARY_TYPE_UPPER}" "SHARED" BREAKPAD_SHARED)
+IF(NOT BREAKPAD_SHARED)
+	STRING(COMPARE EQUAL "${BREAKPAD_LIBRARY_TYPE_UPPER}" "BOTH" BREAKPAD_SHARED)
+ENDIF()
+
+STRING(TOUPPER ${BREAKPAD_RUNTIME_TYPE} BREAKPAD_RUNTIME_TYPE_UPPER)
+STRING(COMPARE EQUAL ${BREAKPAD_RUNTIME_TYPE_UPPER} "STATIC" BREAKPAD_STATIC_RUNTIME)
+
 if(WIN32)
 	set(DEBUG_ACCESS_SDK_DIR "$ENV{VSINSTALLDIR}/DIA SDK")
 	
 	add_definitions(-DUNICODE -D_UNICODE)
 
+	
+	SET(CompilerFlags
+		CMAKE_CXX_FLAGS
+		CMAKE_CXX_FLAGS_DEBUG
+		CMAKE_CXX_FLAGS_RELEASE
+		CMAKE_C_FLAGS
+		CMAKE_C_FLAGS_DEBUG
+		CMAKE_C_FLAGS_RELEASE
+		)
+	IF(BREAKPAD_STATIC_RUNTIME)
+		IF(WIN32)
+			FOREACH(CompilerFlag ${CompilerFlags})
+				STRING(REPLACE "/MD" "/MT" ${CompilerFlag} "${${CompilerFlag}}")
+				STRING(REPLACE "/MDd" "/MTd" ${CompilerFlag} "${${CompilerFlag}}")
+			ENDFOREACH()
+		ENDIF()
+	ELSE()
+		IF(WIN32)
+			FOREACH(CompilerFlag ${CompilerFlags})
+				STRING(REPLACE "/MT" "/MD" ${CompilerFlag} "${${CompilerFlag}}")
+				STRING(REPLACE "/MTd" "/MDd" ${CompilerFlag} "${${CompilerFlag}}")
+			ENDFOREACH()
+		ENDIF()
+	ENDIF()
+
+	
 	include_directories(${BREAKPAD_SRC_DIR} ${BREAKPAD_SRC_DIR}/third_party/windows/include ${DEBUG_ACCESS_SDK_DIR}/include)
 	set(BREAKPADCOMMON_LIB_SRCS
 		${BREAKPAD_SRC_DIR}/common/windows/guid_string.cc
@@ -32,17 +83,24 @@ if(WIN32)
 				# `breakpad_common` to avoid a runtime dependency on the DIA SDK libs
 				# in the breakpad client library
 				${BREAKPAD_SRC_DIR}/common/windows/pdb_source_line_writer.cc
+				${BREAKPAD_SRC_DIR}/common/windows/omap.cc
+				${BREAKPAD_SRC_DIR}/common/windows/dia_util.cc
 				${BREAKPAD_SRC_DIR}/tools/windows/dump_syms/dump_syms.cc
 		)
-
-		find_library(DIA_SDK_GUID_LIB diaguids PATHS ${DEBUG_ACCESS_SDK_DIR}/lib)
+		if(CMAKE_CL_64)
+			find_library(DIA_SDK_GUID_LIB diaguids PATHS ${DEBUG_ACCESS_SDK_DIR}/lib/amd64)
+		else()
+			find_library(DIA_SDK_GUID_LIB diaguids PATHS ${DEBUG_ACCESS_SDK_DIR}/lib)
+		endif()
 		set(DUMPSYMS_LIBS ${DIA_SDK_GUID_LIB})
+		set(BUILD_DUMPSYMS TRUE)
 	else()
 		# The Debug Access SDK is required to build the dump_syms tool.
 		# It ships with the pro versions of Visual Studio 2008 and 2010 but not
 		# the express versions. It is available separately as part of the Windows SDK
 		# however.
 		message(STATUS "Debug Access SDK not found in ${DEBUG_ACCESS_SDK_DIR}")
+		set(BUILD_DUMPSYMS FALSE)
 	endif()
 elseif(APPLE)
 	set(CLIENT_SRC_DIR ${BREAKPAD_SRC_DIR}/client/mac)
@@ -131,17 +189,31 @@ elseif(UNIX)
 	)
 endif()
 
-add_library(breakpad_common ${BREAKPADCOMMON_LIB_SRCS})
-target_link_libraries(breakpad_common ${BREAKPADCOMMON_LIBS})
+IF(BREAKPAD_STATIC)
+	message(STATUS "Adding static breakpad_lib")
+	add_library(breakpad_common STATIC ${BREAKPADCOMMON_LIB_SRCS})
+	target_link_libraries(breakpad_common ${BREAKPADCOMMON_LIBS})
 
-# breakpad - client library for capturing minidumps when a crash
-# occurs
-add_library(breakpad ${BREAKPAD_LIB_SRCS})
-target_link_libraries(breakpad breakpad_common)
+	# breakpad - client library for capturing minidumps when a crash
+	# occurs
+	add_library(breakpad STATIC ${BREAKPAD_LIB_SRCS})
+	target_link_libraries(breakpad breakpad_common)
+ENDIF()
+IF(BREAKPAD_SHARED)
+	message(STATUS "Adding shared breakpad")
+	add_library(breakpad_common SHARED ${BREAKPADCOMMON_LIB_SRCS})
+	target_link_libraries(breakpad_common ${BREAKPADCOMMON_LIBS})
+
+	# breakpad - client library for capturing minidumps when a crash
+	# occurs
+	add_library(breakpad SHARED ${BREAKPAD_LIB_SRCS})
+	target_link_libraries(breakpad breakpad_common)
+ENDIF()
+
 
 # dump_syms - Tool for producing cross-platform .sym files
 # from a binary with debug info
-if (${DUMPSYMS_LIBS} AND ${DUMPSYMS_SRCS})
+if(BUILD_DUMPSYMS)
 	add_executable(dump_syms ${DUMPSYMS_SRCS})
 	target_link_libraries(dump_syms breakpad_common ${DUMPSYMS_LIBS})
 endif()
