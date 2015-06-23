@@ -63,6 +63,7 @@ if(WIN32)
 	set(BREAKPADCOMMON_LIB_SRCS
 		${BREAKPAD_SRC_DIR}/common/windows/guid_string.cc
 		${BREAKPAD_SRC_DIR}/common/windows/string_utils.cc
+		${BREAKPAD_SRC_DIR}/common/windows/http_upload.cc
 	)
 	set(BREAKPADCOMMON_LIBS Imagehlp)
 
