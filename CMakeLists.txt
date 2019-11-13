@@ -193,7 +193,7 @@ endif()
 IF(BREAKPAD_STATIC)
 	message(STATUS "Adding static breakpad_lib")
 	add_library(breakpad_common STATIC ${BREAKPADCOMMON_LIB_SRCS})
-	target_link_libraries(breakpad_common ${BREAKPADCOMMON_LIBS})
+	target_link_libraries(breakpad_common Wininet.lib ${BREAKPADCOMMON_LIBS})
 
 	# breakpad - client library for capturing minidumps when a crash
 	# occurs
@@ -203,7 +203,7 @@ ENDIF()
 IF(BREAKPAD_SHARED)
 	message(STATUS "Adding shared breakpad")
 	add_library(breakpad_common SHARED ${BREAKPADCOMMON_LIB_SRCS})
-	target_link_libraries(breakpad_common ${BREAKPADCOMMON_LIBS})
+	target_link_libraries(breakpad_common Wininet.lib ${BREAKPADCOMMON_LIBS})
 
 	# breakpad - client library for capturing minidumps when a crash
 	# occurs
